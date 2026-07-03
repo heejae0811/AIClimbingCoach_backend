@@ -3,10 +3,6 @@
 선행 연구 기반 수정 (2025-04)
 
 [변경 사항 요약]
-- GIE(Geometric Index of Efficiency) 제거
-  → 클라이밍 선행 연구(Orth et al., 2017; Seifert et al., 2014)에서
-    GIE는 hip center 궤적에만 적용되었으며, 모든 관절로의 확장 근거 불충분
-
 - 모든 10개 관절에 동일한 변수 일괄 적용
   적용 변수:
     velocity      (mean/max/sd) → Beltrán et al. (2023); Richter et al. (2022)
@@ -36,21 +32,6 @@
   symmetry (x+y):     4쌍   × 2방향 × 3 = 24
   ──────────────────────────────────────
   합계:                               144
-
-[참고문헌]
-  Beltrán Beltrán R et al. Sensors. 2023;23(19):8216.
-  Richter J et al. Sensors. 2022;22(6):2251.
-  Boulanger J et al. IEEE Sens J. 2016;16(3):742-749.
-  Seifert L et al. J Appl Biomech. 2014;30(5):619-625.
-  Orth D et al. Front Psychol. 2017;8:1744.
-  Kiely J et al. Sports Med Open. 2019;5(1):43.
-  Roren A et al. Front Bioeng Biotechnol. 2022;9:782740.
-  Seifert L et al. Hum Mov Sci. 2016;48:132-141.
-  Lamoth CJC et al. Gait Posture. 2009;29(4):546-551.
-  Maloney SJ. J Strength Cond Res. 2019;33(9):2579-2593.
-  Bishop C et al. Strength Cond J. 2018;40(4):1-6.
-  Yeung C et al. CVPR Workshop. 2025:5944-5955.
-  Tompson JJ et al. CVPR. 2015:648-656.
 """
 
 import os
@@ -89,6 +70,11 @@ AUTO_PARSE_LABEL_FROM_FILENAME  = True
 
 # 총 feature 수 (assert 검증에 사용)
 EXPECTED_FEATURE_COUNT = 144
+
+MIN_VALID_POSE_RATIO = 0.6
+MIN_VALID_BODY_SIZE_RATIO = 0.5
+MIN_WRIST_ABOVE_SHOULDER_RATIO = 0.15
+MIN_HIP_MOTION = 0.03
 
 # =========================================================
 # 1. Pose landmark index 정의
@@ -520,6 +506,44 @@ def get_xy_columns_for_interpolation() -> List[str]:
 # 12. time-series 변수 생성
 #     모든 10개 관절에 velocity / acceleration / jerk 일괄 적용
 # =========================================================
+def validate_human_pose(df_raw: pd.DataFrame) -> Tuple[bool, str]:
+    core_cols = [
+        "left_shoulder_x", "right_shoulder_x",
+        "left_hip_x", "right_hip_x",
+        "left_ankle_x", "right_ankle_x",
+    ]
+
+    valid_pose_ratio = df_raw[core_cols].notna().all(axis=1).mean()
+
+    df_body = add_body_size_columns(df_raw)
+    valid_body_size_ratio = (
+        df_body["body_size"].notna() & (df_body["body_size"] > 0)
+    ).mean()
+
+    if valid_pose_ratio < MIN_VALID_POSE_RATIO:
+        return False, f"사람 전신 pose 검출률 낮음: {valid_pose_ratio:.2f}"
+
+    if valid_body_size_ratio < MIN_VALID_BODY_SIZE_RATIO:
+        return False, f"신체 중심 검출률 낮음: {valid_body_size_ratio:.2f}"
+
+    return True, "valid human pose"
+
+
+def validate_climbing_like_motion(df_ts: pd.DataFrame) -> Tuple[bool, str]:
+    wrist_above_shoulder_ratio = (
+        (df_ts["left_wrist_y"] < df_ts["shoulder_center_y"]) |
+        (df_ts["right_wrist_y"] < df_ts["shoulder_center_y"])
+    ).mean()
+
+    hip_motion = df_ts["hip_center_y"].std(skipna=True)
+
+    if wrist_above_shoulder_ratio < MIN_WRIST_ABOVE_SHOULDER_RATIO:
+        return False, f"클라이밍 동작 가능성 낮음: 손목-어깨 위치 비율 {wrist_above_shoulder_ratio:.2f}"
+
+    if pd.isna(hip_motion) or hip_motion < MIN_HIP_MOTION:
+        return False, f"골반 이동량 부족: {hip_motion}"
+
+    return True, "valid climbing-like motion"
 
 def build_timeseries_variables(df_raw: pd.DataFrame) -> Tuple[pd.DataFrame, float]:
     if len(df_raw) == 0:
@@ -668,9 +692,19 @@ def process_single_video(video_path: str) -> Optional[pd.DataFrame]:
             print(f"[경고] raw landmark 추출 결과 비어 있음: {video_name}")
             return None
 
+        is_valid_pose, reason = validate_human_pose(df_raw)
+        if not is_valid_pose:
+            print(f"[경고] 유효하지 않은 사람 영상: {reason}")
+            return None
+
         df_ts, body_size_median = build_timeseries_variables(df_raw)
         if df_ts.empty:
             print(f"[경고] time-series 변수 생성 결과 비어 있음: {video_name}")
+            return None
+
+        is_climbing_like, reason = validate_climbing_like_motion(df_ts)
+        if not is_climbing_like:
+            print(f"[경고] 클라이밍 영상으로 보기 어려움: {reason}")
             return None
 
         df_summary = build_summary_features(df_ts, body_size_median)
