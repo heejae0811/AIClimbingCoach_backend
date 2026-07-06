@@ -122,48 +122,48 @@ def make_lime_explanation(X_selected: pd.DataFrame, prediction: int):
 
 def make_gemini_feedback(level, confidence, lime_result, height=None, weight=None):
     prompt = f"""
-You are an AI climbing coach.
-
-The uploaded climbing video was analyzed using:
-1. MediaPipe pose estimation
-2. Machine learning classification
-3. LIME explainable AI
-
-Prediction:
-{level}
-
-Confidence:
-{confidence}
-
-LIME explanation:
-{lime_result}
-
-User body information:
-Height: {height if height else "Not provided"} cm
-Weight: {weight if weight else "Not provided"} kg
-
-Write coaching feedback in Korean based mainly on the LIME explanation.
-
-Important:
-Do not list raw feature values.
-Do not list the user's height or weight directly.
-Use height and weight only to personalize the coaching advice.
-If the climber is relatively short, suggest momentum, earlier foot placement, higher hip movement, or dynamic movement when appropriate.
-If the climber is relatively tall, suggest reach advantage, straighter arms, wider stance, and controlled body positioning when appropriate.
-If the climber is relatively heavy, suggest efficient weight transfer, foot pressure, core tension, and reducing unnecessary upper-body pulling when appropriate.
-If the climber is relatively light, suggest body tension, stable feet, and controlled movement.
-
-Use this format:
-1. 분석 결과
-2. 주요 원인
-3. 맞춤 코칭
-4. 다음 훈련 추천
-
-Keep it under 8 sentences.
-Do not use markdown.
-Do not use long explanations.
-Make it suitable for a mobile app screen.
-"""
+        You are an AI climbing coach.
+        
+        The uploaded climbing video was analyzed using:
+        1. MediaPipe pose estimation
+        2. Machine learning classification
+        3. LIME explainable AI
+        
+        Prediction:
+        {level}
+        
+        Confidence:
+        {confidence}
+        
+        LIME explanation:
+        {lime_result}
+        
+        User body information:
+        Height: {height if height else "Not provided"} cm
+        Weight: {weight if weight else "Not provided"} kg
+        
+        Write coaching feedback in Korean based mainly on the LIME explanation.
+        
+        Important:
+        Do not list raw feature values.
+        Do not list the user's height or weight directly.
+        Use height and weight only to personalize the coaching advice.
+        If the climber is relatively short, suggest momentum, earlier foot placement, higher hip movement, or dynamic movement when appropriate.
+        If the climber is relatively tall, suggest reach advantage, straighter arms, wider stance, and controlled body positioning when appropriate.
+        If the climber is relatively heavy, suggest efficient weight transfer, foot pressure, core tension, and reducing unnecessary upper-body pulling when appropriate.
+        If the climber is relatively light, suggest body tension, stable feet, and controlled movement.
+        
+        Use this format:
+        1. 분석 결과
+        2. 주요 원인
+        3. 맞춤 코칭
+        4. 다음 훈련 추천
+        
+        Keep it under 5 sentences.
+        Do not use markdown.
+        Do not use long explanations.
+        Make it suitable for a mobile app screen.
+    """
 
     return call_gemini(prompt)
 
@@ -175,36 +175,50 @@ def home():
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
-    recent_history = request.history[-5:] if request.history else []
+    recent_history = request.history if request.history else []
+
+    analysis_summary = []
+
+    for item in recent_history:
+        top_lime = item.get("lime", [])[:3]
+
+        analysis_summary.append({
+            "level": item.get("level"),
+            "confidence": round(float(item.get("confidence", 0)), 2),
+            "top_lime": [
+                lime.get("feature_condition")
+                for lime in top_lime
+            ],
+        })
 
     prompt = f"""
-You are a friendly AI climbing coach.
-
-Answer in Korean.
-Use the user's body information, profile, and previous climbing analysis history to give personalized coaching.
-
-User body information:
-Height: {request.height if request.height else "Not provided"} cm
-Weight: {request.weight if request.weight else "Not provided"} kg
-
-User profile:
-{request.profile if request.profile else "Not provided"}
-
-Recent climbing analysis history:
-{recent_history if recent_history else "No previous analysis history"}
-
-Important:
-Do not list height or weight directly.
-Use body information only when it helps personalize advice.
-If previous analyses exist, compare patterns over time.
-Use LIME results to explain recurring movement issues.
-If the user asks about progress, compare recent predictions, confidence, and repeated LIME factors.
-Keep the answer short, practical, and friendly.
-Do not use markdown.
-
-User question:
-{request.message}
-"""
+        You are a friendly AI climbing coach.
+        
+        Answer in Korean.
+        Use the user's body information, profile, and previous climbing analysis history to give personalized coaching.
+        
+        User body information:
+        Height: {request.height if request.height else "Not provided"} cm
+        Weight: {request.weight if request.weight else "Not provided"} kg
+        
+        User profile:
+        {request.profile if request.profile else "Not provided"}
+        
+        Recent climbing analysis history:
+        {recent_history if recent_history else "No previous analysis history"}
+        
+        Important:
+        Do not list height or weight directly.
+        Use body information only when it helps personalize advice.
+        If previous analyses exist, compare patterns over time.
+        Use LIME results to explain recurring movement issues.
+        If the user asks about progress, compare recent predictions, confidence, and repeated LIME factors.
+        Keep the answer short, practical, and friendly.
+        Do not use markdown.
+        
+        User question:
+        {request.message}
+    """
 
     answer = call_gemini(prompt)
 
