@@ -3,7 +3,6 @@ import shutil
 import joblib
 import requests
 import pandas as pd
-
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -148,11 +147,7 @@ def make_gemini_feedback(level, confidence, lime_result, height=None, weight=Non
         Do not list raw feature values.
         Do not list the user's height or weight directly.
         Use height and weight only to personalize the coaching advice.
-        If the climber is relatively short, suggest momentum, earlier foot placement, higher hip movement, or dynamic movement when appropriate.
-        If the climber is relatively tall, suggest reach advantage, straighter arms, wider stance, and controlled body positioning when appropriate.
-        If the climber is relatively heavy, suggest efficient weight transfer, foot pressure, core tension, and reducing unnecessary upper-body pulling when appropriate.
-        If the climber is relatively light, suggest body tension, stable feet, and controlled movement.
-        
+
         Use this format:
         1. 분석 결과
         2. 주요 원인
@@ -208,13 +203,17 @@ async def chat(request: ChatRequest):
         {recent_history if recent_history else "No previous analysis history"}
         
         Important:
-        Do not list height or weight directly.
-        Use body information only when it helps personalize advice.
+        Do not list raw feature values.
+        Do not list the user's height or weight directly.
+        Use height and weight only to personalize the coaching advice.
         If previous analyses exist, compare patterns over time.
-        Use LIME results to explain recurring movement issues.
+        Use LIME results to explain movement issues.
         If the user asks about progress, compare recent predictions, confidence, and repeated LIME factors.
         Keep the answer short, practical, and friendly.
+        Keep it under 5 sentences.
         Do not use markdown.
+        Do not use long explanations.
+        Make it suitable for a mobile app screen.
         
         User question:
         {request.message}
