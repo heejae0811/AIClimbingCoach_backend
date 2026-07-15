@@ -1,0 +1,12 @@
+.venv
+venv
+__pycache__
+*.pyc
+.env
+.git
+.gitignore
+.idea
+.DS_Store
+uploads
+features_output
+videos

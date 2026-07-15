@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+pandas
+numpy
+joblib
+scikit-learn
+lime
+mediapipe
+opencv-python-headless

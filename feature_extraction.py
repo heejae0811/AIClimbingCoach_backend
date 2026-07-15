@@ -682,6 +682,8 @@ def save_dataframe(df: pd.DataFrame, path: str) -> None:
 # =========================================================
 
 def process_single_video(video_path: str) -> Optional[pd.DataFrame]:
+    ensure_directories()
+
     video_name = safe_video_basename(video_path)
     print("=" * 80)
     print(f"[처리 시작] {video_name}")
